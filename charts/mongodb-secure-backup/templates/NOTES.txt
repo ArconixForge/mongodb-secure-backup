@@ -1,0 +1,60 @@
+Thank you for installing {{ .Chart.Name }} (version: {{ .Chart.Version }})!
+
+{{- if .Values.enabled }}
+
+MongoDB Backup has been deployed to your GKE cluster.
+
+{{- if .Values.schedule.enabled }}
+
+## Scheduled Backups
+
+Scheduled backups have been configured to run: {{ .Values.schedule.cronExpression }}
+
+The CronJob name is: {{ include "mongodb-backup.name" . }}
+
+{{- else }}
+
+⚠️ Scheduled backups are disabled. To enable them, set 'schedule.enabled' to true.
+
+{{- end }}
+
+## Manual Backups
+
+To trigger a manual backup, run:
+
+  kubectl create job --from=cronjob/{{ include "mongodb-backup.name" . }} manual-backup-$(date +%s) --namespace {{ .Release.Namespace }}
+
+## Viewing Backup Status
+
+To check the status of backup jobs:
+
+  kubectl get jobs -n {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ .Release.Name }}"
+
+To see the logs of the most recent backup job:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ .Release.Name }}" -o name | grep -v completed | head -1 | xargs kubectl logs -n {{ .Release.Namespace }} --tail=100
+
+## Accessing Backup Data
+
+The backup data is stored in the PVC "{{ include "mongodb-backup.name" . }}-backup-data".
+
+To access the data, you can create a temporary pod:
+
+  kubectl run backup-viewer --image=busybox -i --tty --rm \
+    --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "{{ include "mongodb-backup.name" . }}-backup-data"}}], "containers": [{"name": "backup-viewer", "image": "busybox", "command": ["sh"], "stdin": true, "tty": true, "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' \
+    -- sh
+
+{{- if .Values.security.encryptionEnabled }}
+
+## Security Notice
+
+Backups are encrypted with AES-256-GCM. Make sure to securely store the encryption password, 
+as it will be required to restore from these backups.
+
+{{- end }}
+
+{{- else }}
+
+⚠️ This chart is currently DISABLED. To enable it, set the 'enabled' value to true.
+
+{{- end }}

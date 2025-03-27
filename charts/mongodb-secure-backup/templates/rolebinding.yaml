@@ -1,0 +1,16 @@
+{{- if and .Values.enabled .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "mongodb-backup.name" . }}
+  labels:
+    {{- include "mongodb-backup.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "mongodb-backup.name" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "mongodb-backup.name" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

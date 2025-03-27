@@ -1,0 +1,48 @@
+helmCommands:
+  # 💡 Template Command: Render templates without installing
+  template: |
+    helm template mongodb-backup . --values values.yaml
+
+  # 💡 Lint Command: Validate chart syntax
+  lint: |
+    helm lint .
+
+  # 💡 Dry-run Command: Simulate installation without deploying
+  dryRun: |
+    helm install mongodb-backup . --values values.yaml --namespace mongodb-backup --dry-run --debug
+
+  # 💡 Install Command: Install the chart into Kubernetes
+  install: |
+    helm install mongodb-backup . --values values.yaml --namespace mongodb-backup --create-namespace --debug
+
+  # 💡 Upgrade Command: Upgrade an existing release with updated chart values
+  upgrade: |
+    helm upgrade mongodb-backup . --values values.yaml --namespace mongodb-backup
+
+  # 💡 Uninstall Command: Remove the release from Kubernetes
+  uninstall: |
+    helm uninstall mongodb-backup --namespace mongodb-backup
+
+  # 💡 Status Command: Check the release status
+  status: |
+    helm status mongodb-backup --namespace mongodb-backup
+
+  # 💡 List Command: List all installed Helm releases
+  list: |
+    helm list --namespace mongodb-backup
+
+  # 💡 History Command: View the revision history of a release
+  history: |
+    helm history mongodb-backup --namespace mongodb-backup
+
+  # 💡 Rollback Command: Roll back to a previous release
+  rollback: |
+    helm rollback mongodb-backup <REVISION> --namespace mongodb-backup
+
+  # 💡 Manual Backup Command: Create a one-time backup job
+  manualBackup: |
+    kubectl create job --from=cronjob/mongodb-backup manual-backup-$(date +%s) --namespace mongodb-backup
+
+  # 💡 Check Backup Logs Command: View logs of the most recent backup job
+  viewLogs: |
+    kubectl get pods -n mongodb-backup -l job-name -o name | grep -v completed | head -1 | xargs kubectl logs -n mongodb-backup --tail=100 -f

@@ -1,0 +1,437 @@
+{
+    "$schema": "https://json-schema.org/draft-07/schema#",
+    "title": "MongoDB Backup Helm Chart Values",
+    "description": "Schema for validating MongoDB Backup Helm chart values.yaml",
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable or disable the MongoDB backup deployment",
+        "default": true
+      },
+      "image": {
+        "type": "object",
+        "description": "Image configuration for MongoDB backup",
+        "properties": {
+          "repository": {
+            "type": "string",
+            "description": "Docker image repository",
+            "default": "mongodb-backup"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Docker image tag",
+            "default": "1.0.0"
+          },
+          "pullPolicy": {
+            "type": "string",
+            "description": "Docker image pull policy",
+            "enum": ["Always", "IfNotPresent", "Never"],
+            "default": "IfNotPresent"
+          }
+        },
+        "required": ["repository", "tag", "pullPolicy"]
+      },
+      "securityContext": {
+        "type": "object",
+        "description": "Security context settings",
+        "properties": {
+          "pod": {
+            "type": "object",
+            "description": "Pod security context",
+            "properties": {
+              "runAsUser": {
+                "type": "integer",
+                "description": "User ID for the pod",
+                "minimum": 0,
+                "default": 10001
+              },
+              "runAsGroup": {
+                "type": "integer",
+                "description": "Group ID for the pod",
+                "minimum": 0,
+                "default": 10001
+              },
+              "fsGroup": {
+                "type": "integer",
+                "description": "Group ID for volume ownership",
+                "minimum": 0,
+                "default": 10001
+              }
+            },
+            "required": ["runAsUser", "runAsGroup", "fsGroup"]
+          },
+          "container": {
+            "type": "object",
+            "description": "Container security context",
+            "properties": {
+              "runAsNonRoot": {
+                "type": "boolean",
+                "description": "Run container as non-root user",
+                "default": true
+              },
+              "allowPrivilegeEscalation": {
+                "type": "boolean",
+                "description": "Allow privilege escalation",
+                "default": false
+              },
+              "capabilities": {
+                "type": "object",
+                "description": "Container capabilities",
+                "properties": {
+                  "drop": {
+                    "type": "array",
+                    "description": "Capabilities to drop",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": ["ALL"]
+                  }
+                },
+                "required": ["drop"]
+              },
+              "readOnlyRootFilesystem": {
+                "type": "boolean",
+                "description": "Mount root filesystem as read-only",
+                "default": true
+              }
+            },
+            "required": ["runAsNonRoot", "allowPrivilegeEscalation", "capabilities", "readOnlyRootFilesystem"]
+          }
+        },
+        "required": ["pod", "container"]
+      },
+      "persistence": {
+        "type": "object",
+        "description": "Persistence configuration",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable persistence storage for backups",
+            "default": true
+          },
+          "storageClass": {
+            "type": ["string", "null"],
+            "description": "StorageClass for database persistence",
+            "default": "standard-rwo"
+          },
+          "accessMode": {
+            "type": "string",
+            "description": "PVC access mode",
+            "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany"],
+            "default": "ReadWriteOnce"
+          },
+          "size": {
+            "type": "string",
+            "description": "PVC storage request size",
+            "pattern": "^[0-9]+(Gi|Mi)$",
+            "default": "20Gi"
+          },
+          "annotations": {
+            "type": "object",
+            "description": "Additional annotations for the PVC",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {}
+          }
+        },
+        "required": ["enabled", "accessMode", "size"]
+      },
+      "rbac": {
+        "type": "object",
+        "description": "RBAC settings",
+        "properties": {
+          "create": {
+            "type": "boolean",
+            "description": "Create RBAC resources",
+            "default": true
+          }
+        },
+        "required": ["create"]
+      },
+      "connection": {
+        "type": "object",
+        "description": "MongoDB connection settings",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "MongoDB host",
+            "default": "127.0.0.1"
+          },
+          "port": {
+            "type": ["integer", "string"],
+            "description": "MongoDB port",
+            "default": 27017
+          },
+          "username": {
+            "type": "string",
+            "description": "MongoDB username",
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "description": "MongoDB password",
+            "default": ""
+          },
+          "authDb": {
+            "type": "string",
+            "description": "Authentication database",
+            "default": "admin"
+          },
+          "useSSL": {
+            "type": "boolean",
+            "description": "Use SSL for MongoDB connection",
+            "default": false
+          },
+          "sslCAFile": {
+            "type": "string",
+            "description": "SSL CA file path",
+            "default": ""
+          },
+          "connectionTimeoutMs": {
+            "type": ["integer", "string"],
+            "description": "Connection timeout in milliseconds",
+            "default": 30000
+          }
+        },
+        "required": ["host", "port"]
+      },
+      "export": {
+        "type": "object",
+        "description": "Export parameters",
+        "properties": {
+          "prettyJson": {
+            "type": "boolean",
+            "description": "Use pretty formatting for JSON exports",
+            "default": true
+          },
+          "maxConcurrentExports": {
+            "type": ["integer", "string"],
+            "description": "Maximum concurrent export operations",
+            "default": 3
+          },
+          "retryAttempts": {
+            "type": ["integer", "string"],
+            "description": "Number of retry attempts for failed exports",
+            "default": 3
+          },
+          "retryDelaySeconds": {
+            "type": ["integer", "string"],
+            "description": "Delay between retry attempts",
+            "default": 2
+          },
+          "chunkSize": {
+            "type": ["integer", "string"],
+            "description": "Chunk size for large collections",
+            "default": 1000
+          }
+        },
+        "required": ["prettyJson", "maxConcurrentExports", "retryAttempts", "retryDelaySeconds", "chunkSize"]
+      },
+      "filters": {
+        "type": "object",
+        "description": "Filter parameters",
+        "properties": {
+          "excludeDbs": {
+            "type": "string",
+            "description": "Comma-separated list of databases to exclude",
+            "default": "admin,local,config"
+          },
+          "excludeCollections": {
+            "type": "string",
+            "description": "Comma-separated list or patterns of collections to exclude",
+            "default": "system.*"
+          }
+        },
+        "required": ["excludeDbs", "excludeCollections"]
+      },
+      "security": {
+        "type": "object",
+        "description": "Security parameters",
+        "properties": {
+          "encryptionEnabled": {
+            "type": "boolean",
+            "description": "Enable encryption of backups",
+            "default": true
+          },
+          "encryptionPassword": {
+            "type": "string",
+            "description": "Password for encryption",
+            "default": ""
+          },
+          "compressionMethod": {
+            "type": "string",
+            "description": "Compression method (none, zlib, gzip, lzma)",
+            "enum": ["none", "zlib", "gzip", "lzma"],
+            "default": "lzma"
+          },
+          "compressionLevel": {
+            "type": ["integer", "string"],
+            "description": "Compression level (1-9)",
+            "minimum": 1,
+            "maximum": 9,
+            "default": 9
+          }
+        },
+        "required": ["encryptionEnabled", "compressionMethod", "compressionLevel"]
+      },
+      "schedule": {
+        "type": "object",
+        "description": "Backup schedule configuration",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable scheduled backups",
+            "default": true
+          },
+          "cronExpression": {
+            "type": "string",
+            "description": "Cron expression for scheduled backups",
+            "default": "0 1 * * *"
+          },
+          "successfulJobsHistoryLimit": {
+            "type": "integer",
+            "description": "Number of successful jobs to keep",
+            "default": 3
+          },
+          "failedJobsHistoryLimit": {
+            "type": "integer",
+            "description": "Number of failed jobs to keep",
+            "default": 3
+          },
+          "concurrencyPolicy": {
+            "type": "string",
+            "description": "How to handle concurrent executions",
+            "enum": ["Allow", "Forbid", "Replace"],
+            "default": "Forbid"
+          },
+          "backoffLimit": {
+            "type": "integer",
+            "description": "Number of retries before considering a Job as failed",
+            "default": 3
+          },
+          "activeDeadlineSeconds": {
+            "type": ["integer", "null"],
+            "description": "Timeout for backup jobs in seconds",
+            "default": 3600
+          }
+        },
+        "required": ["enabled", "cronExpression", "successfulJobsHistoryLimit", "failedJobsHistoryLimit", "concurrencyPolicy", "backoffLimit"]
+      },
+      "resources": {
+        "type": "object",
+        "description": "Resource requests and limits",
+        "properties": {
+          "limits": {
+            "type": "object",
+            "description": "Resource limits",
+            "properties": {
+              "cpu": {
+                "type": ["string", "number"],
+                "description": "CPU limits",
+                "default": 1
+              },
+              "memory": {
+                "type": "string",
+                "description": "Memory limits",
+                "pattern": "^[0-9]+(Gi|Mi|Ki|G|M|K)?$",
+                "default": "1Gi"
+              }
+            },
+            "required": ["cpu", "memory"]
+          },
+          "requests": {
+            "type": "object",
+            "description": "Resource requests",
+            "properties": {
+              "cpu": {
+                "type": ["string", "number"],
+                "description": "CPU requests",
+                "default": "200m"
+              },
+              "memory": {
+                "type": "string",
+                "description": "Memory requests",
+                "pattern": "^[0-9]+(Gi|Mi|Ki|G|M|K)?$",
+                "default": "512Mi"
+              }
+            },
+            "required": ["cpu", "memory"]
+          }
+        },
+        "required": ["limits", "requests"]
+      },
+      "nodeSelector": {
+        "type": "object",
+        "description": "Node selector for pod assignment",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "default": {}
+      },
+      "tolerations": {
+        "type": "array",
+        "description": "Tolerations for pod assignment",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "default": []
+      },
+      "affinity": {
+        "type": "object",
+        "description": "Affinity for pod assignment",
+        "additionalProperties": true,
+        "default": {}
+      },
+      "networkPolicy": {
+        "type": "object",
+        "description": "Network policy configuration",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable Network Policy",
+            "default": false
+          },
+          "podSelector": {
+            "type": "object",
+            "description": "Pod selector for allowed traffic",
+            "properties": {
+              "matchLabels": {
+                "type": "object",
+                "description": "Match labels for pod selection",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "default": {
+                  "role": "mongodb-backup"
+                }
+              }
+            },
+            "required": ["matchLabels"]
+          }
+        },
+        "required": ["enabled", "podSelector"]
+      },
+      "logging": {
+        "type": "object",
+        "description": "Logging configuration",
+        "properties": {
+          "level": {
+            "type": "string",
+            "description": "Log level",
+            "enum": ["DEBUG", "INFO", "WARNING", "ERROR"],
+            "default": "INFO"
+          },
+          "format": {
+            "type": "string",
+            "description": "Log format string",
+            "default": "[%(asctime)s] [%(levelname)s] %(message)s"
+          }
+        },
+        "required": ["level", "format"]
+      }
+    },
+    "required": ["enabled", "image", "securityContext", "persistence", "rbac", "connection", "export", "filters", "security", "schedule", "resources"]
+  }

@@ -1,0 +1,37 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mongodb-backup.name" . }}-config
+  labels:
+    {{- include "mongodb-backup.labels" . | nindent 4 }}
+data:
+  mongodb_backup.ini: |
+    [connection]
+    host = {{ .Values.connection.host }}
+    port = {{ .Values.connection.port }}
+    username = {{ .Values.connection.username | quote }}
+    password = {{ .Values.connection.password | quote }}
+    auth_db = {{ .Values.connection.authDb }}
+    use_ssl = {{ .Values.connection.useSSL | toString | lower }}
+    ssl_ca_file = {{ .Values.connection.sslCAFile }}
+    connection_timeout_ms = {{ .Values.connection.connectionTimeoutMs }}
+
+    [export]
+    output_dir = "/backups"
+    pretty_json = {{ .Values.export.prettyJson | toString | lower }}
+    max_concurrent_exports = {{ .Values.export.maxConcurrentExports }}
+    retry_attempts = {{ .Values.export.retryAttempts }}
+    retry_delay_seconds = {{ .Values.export.retryDelaySeconds }}
+    chunk_size = {{ .Values.export.chunkSize }}
+
+    [filters]
+    exclude_dbs = {{ .Values.filters.excludeDbs }}
+    exclude_collections = {{ .Values.filters.excludeCollections }}
+
+    [security]
+    encryption_enabled = {{ .Values.security.encryptionEnabled | toString | lower }}
+    encryption_password = {{ .Values.security.encryptionPassword | quote }}
+    compression_method = {{ .Values.security.compressionMethod }}
+    compression_level = {{ .Values.security.compressionLevel }}
+{{- end }}

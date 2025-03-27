@@ -1,0 +1,105 @@
+# Global toggle to enable/disable the chart
+enabled: true
+
+# Image settings
+image:
+  repository: arconixforge/mongodb-secure-backup
+  tag: 1.0.0
+  pullPolicy: IfNotPresent
+
+# Security context settings
+securityContext:
+  pod:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+  container:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+
+# Storage configuration for backups
+persistence:
+  enabled: true
+  storageClass: "standard-rwo"  # GKE standard storage class
+  accessMode: ReadWriteOnce
+  size: 20Gi
+  annotations: {}
+
+# RBAC settings
+rbac:
+  create: true
+
+# MongoDB connection settings
+connection:
+  host: 127.0.0.1
+  port: 27017
+  username: ""
+  password: ""
+  authDb: admin
+  useSSL: false
+  sslCAFile: ""
+  connectionTimeoutMs: 30000
+
+# Export parameters
+export:
+  prettyJson: true
+  maxConcurrentExports: 3
+  retryAttempts: 3
+  retryDelaySeconds: 2
+  chunkSize: 1000
+
+# Filter parameters
+filters:
+  excludeDbs: "admin,local,config"
+  excludeCollections: "system.*"
+
+# Security parameters
+security:
+  encryptionEnabled: true
+  encryptionPassword: ""  # Should be set via Secret in production
+  compressionMethod: lzma  # none, zlib, gzip, or lzma
+  compressionLevel: 9  # 1 (fastest) to 9 (best compression)
+
+# Backup schedule (using CronJob)
+schedule:
+  enabled: true
+  # Run daily at 1:00 AM
+  cronExpression: "0 1 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # Allow, Forbid, or Replace
+  backoffLimit: 3
+  # Timeout for the backup job (in seconds)
+  activeDeadlineSeconds: 3600  # 1 hour
+
+# Resource requests and limits for GKE
+resources:
+  limits:
+    cpu: 1
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+# Node scheduling for GKE
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Optional network policy
+networkPolicy:
+  enabled: false
+  # If enabled, only pods with the specified label can connect to MongoDB
+  # This is useful to restrict traffic to only the backup job
+  podSelector:
+    matchLabels:
+      role: mongodb-backup
+
+# Log settings
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  format: "[%(asctime)s] [%(levelname)s] %(message)s"

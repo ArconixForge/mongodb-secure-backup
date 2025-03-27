@@ -1,0 +1,23 @@
+apiVersion: v2
+name: mongodb-secure-backup
+description: A production-ready Helm chart for MongoDB backup with encryption on GKE
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - mongodb
+  - backup
+  - encryption
+  - kubernetes
+  - gke
+home: https://github.com/ArconixForge/mongodb-secure-backup
+sources:
+  - https://github.com/ArconixForge/mongodb-secure-backup
+maintainers:
+  - name: ArconixForge
+    email: arconixforge@gmail.com
+    url: https://github.com/ArconixForge
+annotations:
+  category: Database
+  licenses: Apache-2.0
+  repository: https://github.com/ArconixForge/mongodb-secure-backup

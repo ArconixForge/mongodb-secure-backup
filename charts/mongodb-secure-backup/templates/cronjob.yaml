@@ -1,0 +1,123 @@
+{{- if and .Values.enabled .Values.schedule.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "mongodb-backup.name" . }}
+  labels:
+    {{- include "mongodb-backup.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule.cronExpression | quote }}
+  successfulJobsHistoryLimit: {{ .Values.schedule.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.schedule.failedJobsHistoryLimit }}
+  concurrencyPolicy: {{ .Values.schedule.concurrencyPolicy }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.schedule.backoffLimit }}
+      {{- if .Values.schedule.activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ .Values.schedule.activeDeadlineSeconds }}
+      {{- end }}
+      template:
+        metadata:
+          labels:
+            {{- include "mongodb-backup.selectorLabels" . | nindent 12 }}
+            role: mongodb-backup
+        spec:
+          serviceAccountName: {{ include "mongodb-backup.name" . }}
+          securityContext:
+            runAsUser: {{ .Values.securityContext.pod.runAsUser }}
+            runAsGroup: {{ .Values.securityContext.pod.runAsGroup }}
+            fsGroup: {{ .Values.securityContext.pod.fsGroup }}
+          restartPolicy: OnFailure
+          containers:
+            - name: {{ .Chart.Name }}
+              securityContext:
+                runAsNonRoot: {{ .Values.securityContext.container.runAsNonRoot }}
+                allowPrivilegeEscalation: {{ .Values.securityContext.container.allowPrivilegeEscalation }}
+                capabilities:
+                  drop:
+                    {{- toYaml .Values.securityContext.container.capabilities.drop | nindent 20 }}
+                readOnlyRootFilesystem: {{ .Values.securityContext.container.readOnlyRootFilesystem }}
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - "/app/entrypoint.sh"
+                - "auto-backup"
+              env:
+                - name: BACKUP_OUTPUT_DIR
+                  value: "/backups"
+                {{- if .Values.connection.username }}
+                - name: MONGO_USERNAME
+                  value: {{ .Values.connection.username | quote }}
+                {{- end }}
+                {{- if .Values.connection.password }}
+                - name: MONGO_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "mongodb-backup.name" . }}-secret
+                      key: MONGO_PASSWORD
+                {{- end }}
+                - name: MONGO_HOST
+                  value: {{ .Values.connection.host | quote }}
+                - name: MONGO_PORT
+                  value: {{ .Values.connection.port | quote }}
+                - name: MONGO_AUTH_DB
+                  value: {{ .Values.connection.authDb | quote }}
+                - name: USE_SSL
+                  value: {{ .Values.connection.useSSL | toString | quote }}
+                {{- if .Values.connection.sslCAFile }}
+                - name: SSL_CA_FILE
+                  value: {{ .Values.connection.sslCAFile | quote }}
+                {{- end }}
+                - name: PRETTY_JSON
+                  value: {{ .Values.export.prettyJson | toString | quote }}
+                - name: MAX_CONCURRENT_EXPORTS
+                  value: {{ .Values.export.maxConcurrentExports | quote }}
+                - name: EXCLUDE_DBS
+                  value: {{ .Values.filters.excludeDbs | quote }}
+                - name: EXCLUDE_COLLECTIONS
+                  value: {{ .Values.filters.excludeCollections | quote }}
+                - name: ENCRYPTION_ENABLED
+                  value: {{ .Values.security.encryptionEnabled | toString | quote }}
+                {{- if .Values.security.encryptionEnabled }}
+                - name: ENCRYPTION_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "mongodb-backup.name" . }}-secret
+                      key: ENCRYPTION_PASSWORD
+                {{- end }}
+                - name: COMPRESSION_METHOD
+                  value: {{ .Values.security.compressionMethod | quote }}
+                - name: COMPRESSION_LEVEL
+                  value: {{ .Values.security.compressionLevel | quote }}
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+              volumeMounts:
+                - name: config-volume
+                  mountPath: /app/mongodb_backup.ini
+                  subPath: mongodb_backup.ini
+                - name: backup-data
+                  mountPath: /backups
+                - name: log-volume
+                  mountPath: /var/log/mongodb-backup
+          volumes:
+            - name: config-volume
+              configMap:
+                name: {{ include "mongodb-backup.name" . }}-config
+            - name: backup-data
+              persistentVolumeClaim:
+                claimName: {{ include "mongodb-backup.name" . }}-backup-data
+            - name: log-volume
+              emptyDir: {}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
