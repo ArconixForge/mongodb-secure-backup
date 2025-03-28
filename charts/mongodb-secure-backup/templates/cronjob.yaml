@@ -36,28 +36,30 @@ spec:
                 - sh
                 - -c
                 - |
-                  echo "Preparing backup directory..."
-                  # Check if /backups exists
-                  if [ -d "/backups" ]; then
-                    echo "/backups directory exists"
-                  else
-                    echo "Creating /backups directory"
-                    mkdir -p /backups
-                  fi
+                  echo "Preparing backup directories..."
+                  # Create the main backup directory
+                  mkdir -p {{ .Values.export.archiveDir }}
+                  # Create the exports directory
+                  mkdir -p {{ .Values.export.output_dir }}
                   
                   # Set proper permissions
-                  echo "Setting permissions on /backups"
-                  chmod 777 /backups
-                  ls -la /backups
+                  chmod 777 {{ .Values.export.archiveDir }}
+                  chmod 777 {{ .Values.export.output_dir }}
                   
-                  # Create a test file to verify writing works
-                  echo "Creating test file in /backups"
-                  echo "test" > /backups/test.txt
+                  # Create test files to verify writing works
+                  echo "test" > {{ .Values.export.archiveDir }}/test.txt
+                  echo "test" > {{ .Values.export.output_dir }}/test.txt
+                  
+                  echo "Directory structure:"
+                  find {{ .Values.export.archiveDir }} -type d | sort
                   
                   echo "Backup directory preparation complete"
               volumeMounts:
                 - name: backup-data
-                  mountPath: /backups
+                  mountPath: {{ .Values.export.archiveDir }}
+                - name: backup-data
+                  mountPath: {{ .Values.export.output_dir }}
+                  subPath: exports
           containers:
             - name: {{ .Chart.Name }}
               securityContext:
@@ -76,20 +78,37 @@ spec:
                 - "-c"
                 - |
                   echo "Starting backup process..."
-                  echo "Checking BACKUP_OUTPUT_DIR environment variable: $BACKUP_OUTPUT_DIR"
-                  echo "Listing contents of /backups:"
-                  ls -la /backups
+                  echo "Output directory: {{ .Values.export.output_dir }}"
+                  echo "Archive directory: {{ .Values.export.archiveDir }}"
                   
-                  echo "Running entrypoint.sh with auto-backup..."
-                  /app/entrypoint.sh auto-backup {{- if .Values.backupTool.createArchive }} --create-archive {{- if not .Values.backupTool.deleteOriginal }} --keep-original {{- end }} {{- end }} {{- if .Values.backupTool.saveDbInfo }} --save-db-info {{- end }}
+                  echo "Directory contents before backup:"
+                  ls -la {{ .Values.export.archiveDir }}
+                  ls -la {{ .Values.export.output_dir }}
                   
-                  echo "Backup process completed with exit code: $?"
-                  echo "Listing contents of /backups after backup:"
-                  ls -la /backups
+                  echo "Running backup with options:"
+                  echo "  Create Archive: {{ .Values.backupTool.createArchive }}"
+                  echo "  Delete Original: {{ .Values.backupTool.deleteOriginal }}"
+                  echo "  Save DB Info: {{ .Values.backupTool.saveDbInfo }}"
                   
-                  # Keep the container running for debugging
-                  echo "Sleeping for debugging purposes..."
-                  sleep 3600
+                  # Run the backup command with the appropriate flags
+                  /app/entrypoint.sh auto-backup \
+                    {{- if .Values.backupTool.createArchive }} --create-archive{{- end }} \
+                    {{- if not .Values.backupTool.deleteOriginal }} --keep-original{{- end }} \
+                    {{- if .Values.backupTool.saveDbInfo }} --save-db-info{{- end }}
+                  
+                  echo "Backup completed with exit code: $?"
+                  echo "Directory contents after backup:"
+                  ls -la {{ .Values.export.archiveDir }}
+                  ls -la {{ .Values.export.output_dir }}
+                  
+                  # Find the most recent archive
+                  LATEST_ARCHIVE=$(find {{ .Values.export.archiveDir }} -name "*.mdb" -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
+                  if [ -n "$LATEST_ARCHIVE" ]; then
+                    echo "Latest archive created: $LATEST_ARCHIVE"
+                    ls -la "$LATEST_ARCHIVE"
+                  else
+                    echo "No archives found"
+                  fi
               env:
                 - name: BACKUP_OUTPUT_DIR
                   value: "/backups"
@@ -144,16 +163,31 @@ spec:
               resources:
                 {{- toYaml .Values.resources | nindent 16 }}
               volumeMounts:
+                - name: config-volume
+                  mountPath: /app/mongodb_backup.ini
+                  subPath: mongodb_backup.ini
                 - name: backup-data
-                  mountPath: /backups
+                  mountPath: {{ .Values.export.archiveDir }}
+                - name: backup-data
+                  mountPath: {{ .Values.export.output_dir }}
+                  subPath: exports
                 - name: log-volume
                   mountPath: /var/log/mongodb-backup
+                - name: helpers-volume
+                  mountPath: /app/helpers
           volumes:
+            - name: config-volume
+              configMap:
+                name: {{ include "mongodb-backup.name" . }}-config
             - name: backup-data
               persistentVolumeClaim:
                 claimName: {{ include "mongodb-backup.name" . }}-backup-data
             - name: log-volume
               emptyDir: {}
+            - name: helpers-volume
+              configMap:
+                name: {{ include "mongodb-backup.name" . }}-helpers
+                defaultMode: 0755  # Make scripts executable
           {{- with .Values.nodeSelector }}
           nodeSelector:
             {{- toYaml . | nindent 12 }}

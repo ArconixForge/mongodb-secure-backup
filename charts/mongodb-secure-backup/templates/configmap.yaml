@@ -1,3 +1,4 @@
+# charts/mongodb-secure-backup/templates/configmap.yaml
 {{- if .Values.enabled }}
 apiVersion: v1
 kind: ConfigMap
@@ -18,7 +19,7 @@ data:
     connection_timeout_ms = {{ .Values.connection.connectionTimeoutMs }}
 
     [export]
-    output_dir = "/backups"
+    output_dir = "{{ .Values.export.output_dir }}"
     pretty_json = {{ .Values.export.prettyJson | toString | lower }}
     max_concurrent_exports = {{ .Values.export.maxConcurrentExports }}
     retry_attempts = {{ .Values.export.retryAttempts }}
