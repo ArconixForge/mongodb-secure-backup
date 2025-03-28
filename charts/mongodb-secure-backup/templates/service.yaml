@@ -1,4 +1,4 @@
-{{- if and .Values.enabled .Values.ui.enabled }}
+{{- if and .Values.enabled (hasKey .Values "ui") (hasKey .Values.ui "enabled") .Values.ui.enabled }}
 apiVersion: v1
 kind: Service
 metadata:

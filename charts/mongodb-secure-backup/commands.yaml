@@ -9,39 +9,39 @@ helmCommands:
 
   # 💡 Dry-run Command: Simulate installation without deploying
   dryRun: |
-    helm install mongodb-backup . --values values.yaml --namespace mongodb-backup --dry-run --debug
+    helm install mongodb-backup . --values values.yaml --namespace k8-configs --dry-run --debug
 
   # 💡 Install Command: Install the chart into Kubernetes
   install: |
-    helm install mongodb-backup . --values values.yaml --namespace mongodb-backup --create-namespace --debug
+    helm install mongodb-backup . --values values.yaml --namespace k8-configs --create-namespace --debug
 
   # 💡 Upgrade Command: Upgrade an existing release with updated chart values
   upgrade: |
-    helm upgrade mongodb-backup . --values values.yaml --namespace mongodb-backup
+    helm upgrade mongodb-backup . --values values.yaml --namespace k8-configs
 
   # 💡 Uninstall Command: Remove the release from Kubernetes
   uninstall: |
-    helm uninstall mongodb-backup --namespace mongodb-backup
+    helm uninstall mongodb-backup --namespace k8-configs
 
   # 💡 Status Command: Check the release status
   status: |
-    helm status mongodb-backup --namespace mongodb-backup
+    helm status mongodb-backup --namespace k8-configs
 
   # 💡 List Command: List all installed Helm releases
   list: |
-    helm list --namespace mongodb-backup
+    helm list --namespace k8-configs
 
   # 💡 History Command: View the revision history of a release
   history: |
-    helm history mongodb-backup --namespace mongodb-backup
+    helm history mongodb-backup --namespace k8-configs
 
   # 💡 Rollback Command: Roll back to a previous release
   rollback: |
-    helm rollback mongodb-backup <REVISION> --namespace mongodb-backup
+    helm rollback mongodb-backup <REVISION> --namespace k8-configs
 
   # 💡 Manual Backup Command: Create a one-time backup job
   manualBackup: |
-    kubectl create job --from=cronjob/mongodb-backup manual-backup-$(date +%s) --namespace mongodb-backup
+    kubectl create job --from=cronjob/mongodb-backup manual-backup-$(date +%s) --namespace k8-configs
 
   # 💡 Check Backup Logs Command: View logs of the most recent backup job
   viewLogs: |

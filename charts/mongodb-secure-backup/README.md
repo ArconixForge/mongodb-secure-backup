@@ -219,6 +219,107 @@ This chart is optimized for running on Google Kubernetes Engine with:
 2. Resource requests and limits suited for GKE environments
 3. Security settings that comply with GKE security best practices
 
+
+
+# MongoDB Secure Backup Features
+
+## Advanced Backup Capabilities
+
+This Helm chart integrates with a specialized MongoDB backup tool that provides:
+
+- **Flexible Export Options**: Export selected databases or collections as JSON
+- **Industry-standard Encryption**: AES-256-GCM encryption for sensitive data
+- **Multiple Compression Options**: zlib, gzip, or lzma compression with configurable levels
+- **Secure Archive Creation**: Combines all exports into a single encrypted and compressed archive
+- **Data Integrity Verification**: HMAC verification ensures backup integrity
+- **Error Handling**: Automatic retry mechanism with configurable attempts and delay
+- **Parallel Processing**: Configurable concurrent export operations for performance
+- **Progress Tracking**: Detailed reporting and monitoring
+
+## Backup Tool Configuration
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `backupTool.createArchive` | Create a single encrypted archive of all exports | `true` |
+| `backupTool.deleteOriginal` | Delete original files after archive creation | `true` |
+| `backupTool.saveDbInfo` | Save database metadata as JSON | `true` |
+
+## Recovering from Backups
+
+### Method 1: Using the Backup Browser
+
+For simple recovery or to verify backups:
+
+```bash
+# Create a pod to browse the backup files
+kubectl run backup-viewer --image=busybox -i --tty --rm \
+  --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "mongodb-backup-backup-data"}}], "containers": [{"name": "backup-viewer", "image": "busybox", "command": ["sh"], "stdin": true, "tty": true, "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' \
+  -n mongodb-backup -- sh
+
+# Inside the pod, list available backups
+ls -la /backups
+```
+
+### Method 2: Copy Backups Locally
+
+To copy backup files for external processing:
+
+```bash
+# First, identify the backup files
+kubectl run backup-lister --image=busybox --restart=Never -n mongodb-backup \
+  --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "mongodb-backup-backup-data"}}], "containers": [{"name": "backup-lister", "image": "busybox", "command": ["ls", "-la", "/backups"], "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' 
+
+# Check the output
+kubectl logs backup-lister -n mongodb-backup
+
+# Then copy a specific backup file to your local machine
+kubectl cp mongodb-backup/backup-viewer:/backups/mongodb_backup_20250101_010101.mdb ./local-backup.mdb
+kubectl cp mongodb-backup/backup-viewer:/backups/mongodb_backup_20250101_010101.mdb.meta.json ./local-backup.mdb.meta.json
+
+# Clean up the temporary pod
+kubectl delete pod backup-lister -n mongodb-backup
+```
+
+### Method 3: Restore Using the Backup Tool Container
+
+For full restoration using the backup tool:
+
+```bash
+# 1. Create a restoration values file
+cat > restore-values.yaml << EOF
+connection:
+  host: target-mongodb-host
+  port: 27017
+  username: target-mongodb-username
+  password: target-mongodb-password
+  
+# Disable scheduled backups for restore job
+schedule:
+  enabled: false
+EOF
+
+# 2. Deploy a restore pod
+kubectl run mongodb-restore --image={{ .Values.image.repository }}:{{ .Values.image.tag }} \
+  -n mongodb-backup \
+  --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "mongodb-backup-backup-data"}}], "containers": [{"name": "mongodb-restore", "image": "{{ .Values.image.repository }}:{{ .Values.image.tag }}", "command": ["/app/entrypoint.sh"], "args": ["--restore-archive", "/backups/mongodb_backup_20250101_010101.mdb", "--target-dir", "/tmp/restore"], "env": [{"name": "ENCRYPTION_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "mongodb-backup-secret", "key": "ENCRYPTION_PASSWORD"}}}], "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' 
+
+# 3. Check the restoration logs
+kubectl logs -f mongodb-restore -n mongodb-backup
+```
+
+## Understanding Backup File Types
+
+The backup tool creates several types of files:
+
+1. **JSON Exports** (.json): Direct exports from MongoDB collections
+2. **Secure Archives** (.mdb): Encrypted and compressed archives of all exports
+3. **Metadata Files** (.meta.json): Information about the backup including encryption parameters
+4. **Database Info** (database_info.json): Overview of database structure and statistics
+5. **Export Reports** (export_report.json): Detailed report of the export process
+
+When `backupTool.createArchive` is enabled, individual JSON files are combined into a single .mdb archive file for easier management.
+
+
 ## Troubleshooting
 
 ### Common Issues

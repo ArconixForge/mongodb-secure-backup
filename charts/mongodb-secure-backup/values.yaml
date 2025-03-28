@@ -3,8 +3,8 @@ enabled: true
 
 # Image settings
 image:
-  repository: arconixforge/mongodb-secure-backup
-  tag: 1.0.0
+  repository: docker.io/arconixforge/mongodb-secure-backup
+  tag: v1.1
   pullPolicy: IfNotPresent
 
 # Security context settings
@@ -35,40 +35,75 @@ rbac:
 
 # MongoDB connection settings
 connection:
-  host: 127.0.0.1
+  host: "mongodb-headless.mdb.svc.cluster.local"
   port: 27017
-  username: ""
-  password: ""
+  username: "root"
+  password: "password123"
   authDb: admin
   useSSL: false
   sslCAFile: ""
   connectionTimeoutMs: 30000
 
-# Export parameters
-export:
-  prettyJson: true
-  maxConcurrentExports: 3
-  retryAttempts: 3
-  retryDelaySeconds: 2
-  chunkSize: 1000
+
 
 # Filter parameters
 filters:
-  excludeDbs: "admin,local,config"
+  excludeDbs: "admin,local"
   excludeCollections: "system.*"
 
 # Security parameters
 security:
   encryptionEnabled: true
-  encryptionPassword: ""  # Should be set via Secret in production
+  encryptionPassword: "password123"  # Should be set via Secret in production
   compressionMethod: lzma  # none, zlib, gzip, or lzma
   compressionLevel: 9  # 1 (fastest) to 9 (best compression)
+
+# Backup tool specific options
+backupTool:
+  # Create archive after export (combines all files into a single encrypted archive)
+  createArchive: true
+  # Delete original files after creating archive
+  deleteOriginal: true
+  # Save database info as JSON
+  saveDbInfo: true
+
+# Export parameters
+export:
+  output_dir: "/backups/exports"  # This is the directory for JSON exports
+  archiveDir: "/backups"          # This is where archives will be stored
+  prettyJson: true
+  maxConcurrentExports: 3
+  retryAttempts: 3
+  retryDelaySeconds: 2
+  chunkSize: 1000
+  createArchive: true            # Enable archive creation by default
+  keepOriginalFiles: false       # Delete original files after creating archive
+
+
+# UI configuration
+ui:
+  enabled: false  # Set to true if you want to deploy the UI component
+  image:
+    repository: arconixforge/mongodb-backup-ui
+    tag: 1.0.0
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
 
 # Backup schedule (using CronJob)
 schedule:
   enabled: true
   # Run daily at 1:00 AM
-  cronExpression: "0 1 * * *"
+  # cronExpression: "0 1 * * *" 5:44
+  cronExpression: "15 12 * * *" 
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid  # Allow, Forbid, or Replace
@@ -79,11 +114,11 @@ schedule:
 # Resource requests and limits for GKE
 resources:
   limits:
-    cpu: 1
-    memory: 1Gi
+    cpu: 2
+    memory: 2Gi
   requests:
-    cpu: 200m
-    memory: 512Mi
+    cpu: 500m
+    memory: 1Gi
 
 # Node scheduling for GKE
 nodeSelector: {}

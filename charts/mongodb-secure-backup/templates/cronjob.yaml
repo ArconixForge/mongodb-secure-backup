@@ -28,6 +28,36 @@ spec:
             runAsGroup: {{ .Values.securityContext.pod.runAsGroup }}
             fsGroup: {{ .Values.securityContext.pod.fsGroup }}
           restartPolicy: OnFailure
+          # Add init container to prepare the backup directory
+          initContainers:
+            - name: prepare-backup-dir
+              image: busybox
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Preparing backup directory..."
+                  # Check if /backups exists
+                  if [ -d "/backups" ]; then
+                    echo "/backups directory exists"
+                  else
+                    echo "Creating /backups directory"
+                    mkdir -p /backups
+                  fi
+                  
+                  # Set proper permissions
+                  echo "Setting permissions on /backups"
+                  chmod 777 /backups
+                  ls -la /backups
+                  
+                  # Create a test file to verify writing works
+                  echo "Creating test file in /backups"
+                  echo "test" > /backups/test.txt
+                  
+                  echo "Backup directory preparation complete"
+              volumeMounts:
+                - name: backup-data
+                  mountPath: /backups
           containers:
             - name: {{ .Chart.Name }}
               securityContext:
@@ -36,12 +66,30 @@ spec:
                 capabilities:
                   drop:
                     {{- toYaml .Values.securityContext.container.capabilities.drop | nindent 20 }}
-                readOnlyRootFilesystem: {{ .Values.securityContext.container.readOnlyRootFilesystem }}
+                # This is the key change - allow writing to the filesystem
+                readOnlyRootFilesystem: false
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
+              # Add debugging to see what's happening
               command:
-                - "/app/entrypoint.sh"
-                - "auto-backup"
+                - "/bin/bash"
+                - "-c"
+                - |
+                  echo "Starting backup process..."
+                  echo "Checking BACKUP_OUTPUT_DIR environment variable: $BACKUP_OUTPUT_DIR"
+                  echo "Listing contents of /backups:"
+                  ls -la /backups
+                  
+                  echo "Running entrypoint.sh with auto-backup..."
+                  /app/entrypoint.sh auto-backup {{- if .Values.backupTool.createArchive }} --create-archive {{- if not .Values.backupTool.deleteOriginal }} --keep-original {{- end }} {{- end }} {{- if .Values.backupTool.saveDbInfo }} --save-db-info {{- end }}
+                  
+                  echo "Backup process completed with exit code: $?"
+                  echo "Listing contents of /backups after backup:"
+                  ls -la /backups
+                  
+                  # Keep the container running for debugging
+                  echo "Sleeping for debugging purposes..."
+                  sleep 3600
               env:
                 - name: BACKUP_OUTPUT_DIR
                   value: "/backups"
@@ -89,20 +137,18 @@ spec:
                   value: {{ .Values.security.compressionMethod | quote }}
                 - name: COMPRESSION_LEVEL
                   value: {{ .Values.security.compressionLevel | quote }}
+                {{- if .Values.logging.level }}
+                - name: LOG_LEVEL
+                  value: {{ .Values.logging.level | quote }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.resources | nindent 16 }}
               volumeMounts:
-                - name: config-volume
-                  mountPath: /app/mongodb_backup.ini
-                  subPath: mongodb_backup.ini
                 - name: backup-data
                   mountPath: /backups
                 - name: log-volume
                   mountPath: /var/log/mongodb-backup
           volumes:
-            - name: config-volume
-              configMap:
-                name: {{ include "mongodb-backup.name" . }}-config
             - name: backup-data
               persistentVolumeClaim:
                 claimName: {{ include "mongodb-backup.name" . }}-backup-data
