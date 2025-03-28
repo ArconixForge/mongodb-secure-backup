@@ -37,29 +37,45 @@ spec:
                 - -c
                 - |
                   echo "Preparing backup directories..."
-                  # Create the main backup directory
-                  mkdir -p {{ .Values.export.archiveDir }}
-                  # Create the exports directory
-                  mkdir -p {{ .Values.export.output_dir }}
+                  whoami
+                  echo "Current user ID: $(id -u) and group ID: $(id -g)"
+                  
+                  echo "Root fs contents:"
+                  find / -maxdepth 1 -type d | sort
+                  
+                  # Create all required directories
+                  mkdir -p /backup-data
+                  mkdir -p /backup-data/exports
+                  mkdir -p /backup-data/archives
+                  mkdir -p /home/backupuser
                   
                   # Set proper permissions
-                  chmod 777 {{ .Values.export.archiveDir }}
-                  chmod 777 {{ .Values.export.output_dir }}
+                  chmod -R 777 /backup-data
+                  chmod -R 777 /home/backupuser
                   
-                  # Create test files to verify writing works
-                  echo "test" > {{ .Values.export.archiveDir }}/test.txt
-                  echo "test" > {{ .Values.export.output_dir }}/test.txt
+                  # Create test files to verify directory is writable
+                  echo "test" > /backup-data/test.txt
+                  echo "test" > /backup-data/exports/test.txt
+                  echo "test" > /backup-data/archives/test.txt
                   
-                  echo "Directory structure:"
-                  find {{ .Values.export.archiveDir }} -type d | sort
+                  echo "Directory contents:"
+                  ls -la /backup-data
+                  ls -la /backup-data/exports
+                  ls -la /backup-data/archives
+                  
+                  # Setup ownership
+                  chown -R 10001:10001 /backup-data
+                  chown -R 10001:10001 /home/backupuser
                   
                   echo "Backup directory preparation complete"
+              securityContext:
+                runAsUser: 0  # Run as root for directory creation
+                allowPrivilegeEscalation: true
               volumeMounts:
                 - name: backup-data
-                  mountPath: {{ .Values.export.archiveDir }}
-                - name: backup-data
-                  mountPath: {{ .Values.export.output_dir }}
-                  subPath: exports
+                  mountPath: /backup-data
+                - name: home-volume
+                  mountPath: /home
           containers:
             - name: {{ .Chart.Name }}
               securityContext:
@@ -68,50 +84,82 @@ spec:
                 capabilities:
                   drop:
                     {{- toYaml .Values.securityContext.container.capabilities.drop | nindent 20 }}
-                # This is the key change - allow writing to the filesystem
                 readOnlyRootFilesystem: false
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
-              # Add debugging to see what's happening
               command:
                 - "/bin/bash"
                 - "-c"
                 - |
                   echo "Starting backup process..."
-                  echo "Output directory: {{ .Values.export.output_dir }}"
-                  echo "Archive directory: {{ .Values.export.archiveDir }}"
+                  whoami
+                  echo "Current user ID: $(id -u) and group ID: $(id -g)"
+                  
+                  # Setup directories for the backup
+                  echo "Preparing configuration..."
+                  mkdir -p /tmp/config
+                  cp /app/config/mongodb_backup.ini /tmp/config/
+                  chmod 644 /tmp/config/mongodb_backup.ini
+                  
+                  # Inspect and modify config
+                  echo "Original config:"
+                  cat /tmp/config/mongodb_backup.ini
+                  
+                  # Explicitly set output dir in config
+                  sed -i 's|output_dir = .*|output_dir = "/backup-data/exports"|g' /tmp/config/mongodb_backup.ini
+                  
+                  echo "Modified config:"
+                  cat /tmp/config/mongodb_backup.ini
+                  
+                  # Set environment variables
+                  export HOME=/home/backupuser
+                  export BACKUP_OUTPUT_DIR=/backup-data/exports
+                  
+                  echo "Environment variables:"
+                  env | grep -E 'HOME|BACKUP|MONGO'
                   
                   echo "Directory contents before backup:"
-                  ls -la {{ .Values.export.archiveDir }}
-                  ls -la {{ .Values.export.output_dir }}
+                  ls -la /backup-data
+                  ls -la /backup-data/exports
+                  ls -la /backup-data/archives
                   
-                  echo "Running backup with options:"
-                  echo "  Create Archive: {{ .Values.backupTool.createArchive }}"
-                  echo "  Delete Original: {{ .Values.backupTool.deleteOriginal }}"
-                  echo "  Save DB Info: {{ .Values.backupTool.saveDbInfo }}"
+                  echo "Running backup command:"
+                  echo "/app/entrypoint.sh auto-backup --config /tmp/config/mongodb_backup.ini --create-archive --save-db-info"
                   
-                  # Run the backup command with the appropriate flags
-                  /app/entrypoint.sh auto-backup \
-                    {{- if .Values.backupTool.createArchive }} --create-archive{{- end }} \
-                    {{- if not .Values.backupTool.deleteOriginal }} --keep-original{{- end }} \
-                    {{- if .Values.backupTool.saveDbInfo }} --save-db-info{{- end }}
+                  # Run the direct command without shell substitution
+                  /app/entrypoint.sh auto-backup --config /tmp/config/mongodb_backup.ini --create-archive --save-db-info
                   
-                  echo "Backup completed with exit code: $?"
+                  # Store the exit code
+                  BACKUP_EXIT_CODE=$?
+                  echo "Backup completed with exit code: $BACKUP_EXIT_CODE"
+                  
                   echo "Directory contents after backup:"
-                  ls -la {{ .Values.export.archiveDir }}
-                  ls -la {{ .Values.export.output_dir }}
+                  ls -la /backup-data
+                  ls -la /backup-data/exports
+                  ls -la /backup-data/archives
                   
-                  # Find the most recent archive
-                  LATEST_ARCHIVE=$(find {{ .Values.export.archiveDir }} -name "*.mdb" -type f -printf "%T@ %p\n" | sort -n | tail -1 | cut -d' ' -f2-)
-                  if [ -n "$LATEST_ARCHIVE" ]; then
-                    echo "Latest archive created: $LATEST_ARCHIVE"
-                    ls -la "$LATEST_ARCHIVE"
-                  else
-                    echo "No archives found"
+                  # Fix archiving issue by running it directly if needed
+                  if [ $BACKUP_EXIT_CODE -eq 0 ] && [ ! -f /backup-data/*.mdb ]; then
+                    echo "Archive not created, trying direct archive creation..."
+                    python /app/mongodb_backup.py --config /tmp/config/mongodb_backup.ini --create-archive
                   fi
+                  
+                  # Find archives
+                  echo "Looking for archives in all locations:"
+                  find / -name "*.mdb" -type f 2>/dev/null || echo "No archives found anywhere"
+                  
+                  # Look specifically in the backup directory
+                  echo "Archives in backup directory:"
+                  find /backup-data -name "*.mdb" -type f 2>/dev/null || echo "No archives found in backup directory"
+                  
+                  # Keep container running for debugging
+                  echo "Backup process complete, sleeping for debug access..."
+                  sleep 3600
               env:
                 - name: BACKUP_OUTPUT_DIR
-                  value: "/backups"
+                  value: "/backup-data/exports"
+                - name: HOME
+                  value: "/home/backupuser"
                 {{- if .Values.connection.username }}
                 - name: MONGO_USERNAME
                   value: {{ .Values.connection.username | quote }}
@@ -164,17 +212,15 @@ spec:
                 {{- toYaml .Values.resources | nindent 16 }}
               volumeMounts:
                 - name: config-volume
-                  mountPath: /app/mongodb_backup.ini
-                  subPath: mongodb_backup.ini
+                  mountPath: /app/config
                 - name: backup-data
-                  mountPath: {{ .Values.export.archiveDir }}
-                - name: backup-data
-                  mountPath: {{ .Values.export.output_dir }}
-                  subPath: exports
+                  mountPath: /backup-data
                 - name: log-volume
                   mountPath: /var/log/mongodb-backup
-                - name: helpers-volume
-                  mountPath: /app/helpers
+                - name: tmp-volume
+                  mountPath: /tmp
+                - name: home-volume
+                  mountPath: /home
           volumes:
             - name: config-volume
               configMap:
@@ -184,10 +230,10 @@ spec:
                 claimName: {{ include "mongodb-backup.name" . }}-backup-data
             - name: log-volume
               emptyDir: {}
-            - name: helpers-volume
-              configMap:
-                name: {{ include "mongodb-backup.name" . }}-helpers
-                defaultMode: 0755  # Make scripts executable
+            - name: tmp-volume
+              emptyDir: {}
+            - name: home-volume
+              emptyDir: {}
           {{- with .Values.nodeSelector }}
           nodeSelector:
             {{- toYaml . | nindent 12 }}

@@ -63,21 +63,21 @@ backupTool:
   # Create archive after export (combines all files into a single encrypted archive)
   createArchive: true
   # Delete original files after creating archive
-  deleteOriginal: true
+  deleteOriginal: false
   # Save database info as JSON
   saveDbInfo: true
 
 # Export parameters
 export:
-  output_dir: "/backups/exports"  # This is the directory for JSON exports
-  archiveDir: "/backups"          # This is where archives will be stored
+  output_dir: "/backup-data/exports"  # This is the directory for JSON exports
+  archiveDir: "/backup-data/archives"          # This is where archives will be stored
   prettyJson: true
   maxConcurrentExports: 3
   retryAttempts: 3
   retryDelaySeconds: 2
   chunkSize: 1000
   createArchive: true            # Enable archive creation by default
-  keepOriginalFiles: false       # Delete original files after creating archive
+  keepOriginalFiles: true       # Delete original files after creating archive
 
 
 # UI configuration
@@ -102,8 +102,8 @@ ui:
 schedule:
   enabled: true
   # Run daily at 1:00 AM
-  # cronExpression: "0 1 * * *" 5:44
-  cronExpression: "15 12 * * *" 
+  # cronExpression: "0 1 * * *" 3:07PM 
+  cronExpression: "37 9 * * *" 
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid  # Allow, Forbid, or Replace

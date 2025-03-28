@@ -27,5 +27,5 @@ data:
     fi
     
     echo "Restoring from archive: $ARCHIVE"
-    python /app/mongodb_backup.py --config /app/mongodb_backup.ini --restore-archive "$ARCHIVE"
+    python /app/mongodb_backup.py --config /tmp/config/mongodb_backup.ini --restore-archive "$ARCHIVE"
 {{- end }}
