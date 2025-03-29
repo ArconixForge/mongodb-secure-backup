@@ -1,0 +1,56 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+annotations:
+  artifacthub.io/category: security
+  artifacthub.io/changes: |
+    - Initial release of MongoDB Secure Backup
+    - AES-256-GCM encryption for sensitive data
+    - Multiple compression options (zlib, gzip, lzma)
+    - Scheduled backups with configurable retention
+    - PVC storage with easy access options
+  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/prerelease: "false"
+  category: Database
+  licenses: Apache-2.0
+  repository: https://github.com/ArconixForge/mongodb-secure-backup
+apiVersion: v2
+appVersion: 1.0.0
+description: A production-ready Helm chart for MongoDB backup with encryption on GKE
+home: https://github.com/ArconixForge/mongodb-secure-backup
+keywords:
+- - mongodb
+- - backup
+- - encryption
+- - kubernetes
+- - gke
+maintainers:
+- - email: arconixforge@gmail.com
+  name: ArconixForge
+  url: https://github.com/ArconixForge
+name: mongodb-secure-backup
+sources:
+- - https://github.com/ArconixForge/mongodb-secure-backup
+type: application
+version: 1.0.0
+
+...
+files:
+  mongodb-secure-backup-1.0.0.tgz: sha256:20639a043f68d8669442859ef8d6a1115dc5572730977e8424509150337c5139
+-----BEGIN PGP SIGNATURE-----
+
+wsFcBAEBCgAQBQJn58DKCRAqrrF5yS4IAQAAvS8QAJQDOdXi5/4hriY9Ut2v9soE
+Na869DqHSJW+xwSQ7loUmBaoEDY7VwbQ/G/RmfrnBI5zKqsLWeT9SdLI1qxa+RyN
+iaj8qwLvt37hd3Mh3D9/WGclC2HD7XeF9p8B1uryXCvzMJdFYYunnkzIuLbdU598
+TqHr4FdNqmX6aoePaLjzSOFqT6zohtGYrmyQueqc+gb8PRU6IvNvMUEXHnUve/JX
+oZHSxtFkfeJFp3SUjF63ceaygtF4W5mmFrjFUYFjDF83NSE/k/+qgSuUytCXHk93
+4AlLGzdlcRFhTO8YCXcPKxDK0+fxUSRwX9060kgkn5BY6H6SYzkdH5n/rzauxtu+
+LMSRCgyWbUx5GG11BnVvt3r04MnEsJfl7bPnVjcLHiD1ACkqgd9LG7MwQy2o/yWe
+udsnf5dCSmUT77XL/SiwOZ2mzsfuwhHDN3+TYZwA6qWQrsa/mtbCBNca1IwiEjPQ
+deSI3kb1KWPW9wTjZwec0tQN/M0MdU1+CnSxqu5OOtOLInTvE+h3vFZU8V1Yklvc
+AksotwVHAFTbRWfszoVuvmSxW3GyM+95xOYT5vyg/GHuWGVUjJi8hVt65x1CIrE7
+60Tp4oDlNaj40iO9D1fUm7BzQC10hGzd3lfMFe0Ve0XUTSaKrAabv+lL9dvri6lN
+A7IS7z+830jP0rQgoBMQ
+=3kYd
+-----END PGP SIGNATURE-----

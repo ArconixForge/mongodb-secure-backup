@@ -17,10 +17,10 @@ entries:
       repository: https://github.com/ArconixForge/mongodb-secure-backup
     apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-03-29T09:19:40.773687859Z"
+    created: "2025-03-29T15:49:31.1617323+05:30"
     description: A production-ready Helm chart for MongoDB backup with encryption
       on GKE
-    digest: 585a0d05826ead65debc9cc8ae11991dfc655264ca381bfd921ed3e80414e1ba
+    digest: 20639a043f68d8669442859ef8d6a1115dc5572730977e8424509150337c5139
     home: https://github.com/ArconixForge/mongodb-secure-backup
     keywords:
     - mongodb
@@ -37,6 +37,6 @@ entries:
     - https://github.com/ArconixForge/mongodb-secure-backup
     type: application
     urls:
-    - https://arconixforge.github.io/mongodb-secure-backup/packaged/mongodb-secure-backup-1.0.0.tgz
+    - https://arconixforge.github.io/mongodb-secure-backup/packaged/packaged/mongodb-secure-backup-1.0.0.tgz
     version: 1.0.0
-generated: "2025-03-29T09:19:40.772651266Z"
+generated: "2025-03-29T15:49:31.160655+05:30"
