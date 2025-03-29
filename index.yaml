@@ -37,6 +37,6 @@ entries:
     - https://github.com/ArconixForge/mongodb-secure-backup
     type: application
     urls:
-    - https://arconixforge.github.io/mongodb-secure-backup/packaged/packaged/mongodb-secure-backup-1.0.0.tgz
+    - https://arconixforge.github.io/mongodb-secure-backup/packaged/mongodb-secure-backup-1.0.0.tgz
     version: 1.0.0
 generated: "2025-03-29T15:49:31.160655+05:30"
