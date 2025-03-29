@@ -1,0 +1,77 @@
+name: Release MongoDB Secure Backup Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'charts/mongodb-secure-backup/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.13.0
+
+      - name: Extract Chart Version
+        id: chart_version
+        run: |
+          VERSION=$(grep 'version:' charts/mongodb-secure-backup/Chart.yaml | awk '{print $2}')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Chart version: $VERSION"
+
+      - name: Create Packaged Directory
+        run: |
+          # Ensure the packaged directory exists
+          mkdir -p packaged
+          echo "Created packaged directory"
+          ls -la
+
+      - name: Package Helm Chart
+        run: |
+          # Package the chart to the packaged directory
+          helm package charts/mongodb-secure-backup -d packaged/
+          echo "Chart packaged:"
+          ls -la packaged/
+
+      - name: Generate Index File
+        run: |
+          # Generate index.yaml at the root level pointing to charts in packaged/
+          helm repo index . --url https://arconixforge.github.io/mongodb-secure-backup/packaged
+          echo "Index generated:"
+          ls -la
+          # Fix any incorrect URLs in the index file
+          sed -i 's|https://arconixforge.github.io/mongodb-secure-backup/packaged/packaged/|https://arconixforge.github.io/mongodb-secure-backup/packaged/|g' index.yaml
+          cat index.yaml
+
+      - name: Commit and Push Changes
+        run: |
+          # Stage both the packaged directory and index.yaml
+          git add packaged/ index.yaml
+          # Only commit if there are changes
+          git diff --staged --quiet || git commit -m "Update packaged charts and index"
+          git push
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "mongodb-secure-backup-${{ steps.chart_version.outputs.version }}"
+          files: packaged/mongodb-secure-backup-*.tgz
+          generate_release_notes: true

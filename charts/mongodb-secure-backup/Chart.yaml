@@ -21,3 +21,13 @@ annotations:
   category: Database
   licenses: Apache-2.0
   repository: https://github.com/ArconixForge/mongodb-secure-backup
+  artifacthub.io/changes: |
+    - Initial release of MongoDB Secure Backup
+    - AES-256-GCM encryption for sensitive data
+    - Multiple compression options (zlib, gzip, lzma)
+    - Scheduled backups with configurable retention
+    - PVC storage with easy access options
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/prerelease: "false"
+  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/category: security

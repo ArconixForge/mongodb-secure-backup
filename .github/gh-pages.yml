@@ -1,0 +1,81 @@
+name: GitHub Pages for MongoDB Secure Backup
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Build Site
+        run: |
+          mkdir -p .public
+          
+          # Copy packaged directory if it exists
+          if [ -d "packaged" ]; then
+            cp -r packaged .public/
+          fi
+          
+          # Copy index.yaml to .public directory
+          if [ -f "index.yaml" ]; then
+            cp index.yaml .public/
+          fi
+          
+          # Generate index.html
+          cat > .public/index.html <<EOL
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>MongoDB Secure Backup Helm Charts</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; }
+              h1 { color: #333; }
+              code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
+              pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+            </style>
+          </head>
+          <body>
+            <h1>MongoDB Secure Backup Helm Chart Repository</h1>
+            <p>Use this repository by adding it to your Helm:</p>
+            <pre><code>helm repo add arconixforge https://arconixforge.github.io/mongodb-secure-backup
+              helm repo update</code></pre>
+            <h2>Installation</h2>
+            <pre><code>helm install mongodb-backup arconixforge/mongodb-secure-backup</code></pre>
+            <p>For more information, see the <a href="https://github.com/ArconixForge/mongodb-secure-backup/blob/main/charts/mongodb-secure-backup/README.md">documentation</a>.</p>
+          </body>
+          </html>
+          EOL
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .public
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
