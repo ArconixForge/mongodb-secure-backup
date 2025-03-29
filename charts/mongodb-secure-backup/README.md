@@ -1,36 +1,46 @@
-# MongoDB Backup Helm Chart
+# MongoDB Secure Backup
 
-A production-ready Helm chart for deploying a MongoDB backup solution on GKE with focus on security, reliability, and ease of use.
+A production-ready MongoDB backup solution with advanced security features, containerization, and Kubernetes deployment options.
 
-## Overview
-
-This Helm chart deploys a secure MongoDB backup tool that provides scheduled backups of your MongoDB databases with encryption, compression, and configurable retention. The chart is optimized for Google Kubernetes Engine (GKE) deployments.
+![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 
 ## Features
 
-- Scheduled backups using Kubernetes CronJobs
-- Strong encryption using AES-256-GCM
-- Multiple compression options (zlib, gzip, lzma)
-- Selective database and collection backup
-- Advanced filtering capabilities
-- Secure storage with GKE persistent volumes
-- Comprehensive RBAC configuration
-- Deployment optimized for GKE
+- **Secure Backups**: AES-256-GCM encryption for sensitive data
+- **Flexible Compression**: Multiple compression options (zlib, gzip, lzma)
+- **Comprehensive Exports**: Export selected databases or collections
+- **Containerized**: Docker image for easy deployment
+- **Kubernetes-Ready**: Helm chart for GKE and other Kubernetes environments
+- **Parallel Processing**: Configurable concurrent export operations
+- **Data Integrity**: HMAC verification ensures backup integrity
+- **Customizable Filtering**: Include/exclude specific databases or collections
 
-## Prerequisites
+## Quick Start
 
-- Kubernetes 1.19+ (GKE 1.19+)
-- Helm 3.2.0+
-- PV provisioner support in GKE
-- Access to a MongoDB instance
+### Running with Docker
 
-## Installation
+```bash
+docker run -v /path/to/backups:/backups \
+  -e MONGO_HOST=your-mongodb-host \
+  -e MONGO_USERNAME=root \
+  -e MONGO_PASSWORD=yourpassword \
+  -e ENCRYPTION_ENABLED=true \
+  -e ENCRYPTION_PASSWORD=yourencryptionkey \
+  arconixforge/mongodb-secure-backup:1.0.0 auto-backup
+```
 
-### Creating custom values file
+### Running with Kubernetes using Helm
 
-Create a `custom-values.yaml` file to override default values:
+1. Add the repository (once hosted)
+```bash
+# helm repo add arconixforge https://charts.arconixforge.com
+# helm repo update
+```
 
-```yaml
+2. Install the chart with custom values
+```bash
+# Create a custom values file
+cat > custom-values.yaml << EOF
 connection:
   host: your-mongodb-host
   port: 27017
@@ -40,215 +50,50 @@ connection:
 
 persistence:
   size: 50Gi  # Adjust based on your backup size requirements
-  storageClass: "standard-rwo"  # GKE standard storage class
+  storageClass: "standard-rwo"  # Use appropriate storage class
 
 security:
   encryptionEnabled: true
-  # Leave password empty for auto-generation or set a secure password
+  encryptionPassword: "securepassword"  # Better to leave empty for auto-generation
 
 schedule:
   cronExpression: "0 1 * * *"  # Daily at 1:00 AM
-```
+EOF
 
-### Installing the chart
-
-```bash
-# Add the repository (if hosted in a repository)
-# helm repo add myrepo https://example.com/charts
-# helm repo update
-
-# Install from local directory
-helm install mongodb-backup ./charts/mongodb-backup \
+# Install the chart
+helm install mongodb-backup ./charts/mongodb-secure-backup \
   --values custom-values.yaml \
   --namespace mongodb-backup \
   --create-namespace
 ```
 
-### Verifying the installation
+## Backup Storage and Retrieval
 
-```bash
-# Check the status of the release
-helm status mongodb-backup -n mongodb-backup
+The backup tool stores data in a structured format to facilitate easy management and retrieval.
 
-# Check if the CronJob was created
-kubectl get cronjobs -n mongodb-backup
+### Understanding Backup Storage Structure
 
-# Check if the PVC was created
-kubectl get pvc -n mongodb-backup
+When deployed with Kubernetes, backups are stored on a Persistent Volume Claim (PVC) with the following directory structure:
+
+```
+/backup-data/
+├── db-exports/           # Raw database exports (JSON)
+├── db-info/              # Database metadata and structure
+└── archives/             # Encrypted backup archives (.mdb files)
 ```
 
-## Uninstalling the Chart
+### Backup Files
 
-To uninstall/delete the `mongodb-backup` deployment:
+The tool generates several types of files:
 
-```bash
-helm uninstall mongodb-backup -n mongodb-backup
-```
+1. **JSON Exports** (.json): Direct exports from MongoDB collections
+2. **Secure Archives** (.mdb): Encrypted and compressed archives of all exports
+3. **Metadata Files** (.meta.json): Information about encryption parameters
+4. **Database Info** (database_info.json): Overview of database structure
 
-Note: This will not delete the PVC with the backup data. If you want to delete the backup data as well:
+### Accessing Backup Data from PVC
 
-```bash
-kubectl delete pvc mongodb-backup-backup-data -n mongodb-backup
-```
-
-## Configuration
-
-### Critical Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `connection.host` | MongoDB host | `127.0.0.1` |
-| `connection.port` | MongoDB port | `27017` |
-| `connection.username` | MongoDB username | `""` |
-| `connection.password` | MongoDB password | `""` |
-| `persistence.size` | Size of the backup PVC | `20Gi` |
-| `security.encryptionEnabled` | Enable encryption | `true` |
-| `security.encryptionPassword` | Password for encryption | `""` (auto-generated if empty) |
-| `schedule.cronExpression` | Schedule for backups | `"0 1 * * *"` (daily at 1:00 AM) |
-
-### MongoDB Connection Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `connection.authDb` | Authentication database | `admin` |
-| `connection.useSSL` | Use SSL for MongoDB connection | `false` |
-| `connection.sslCAFile` | SSL CA file path | `""` |
-| `connection.connectionTimeoutMs` | Connection timeout in milliseconds | `30000` |
-
-### Backup Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `export.prettyJson` | Use pretty formatting for JSON exports | `true` |
-| `export.maxConcurrentExports` | Maximum concurrent export operations | `3` |
-| `export.retryAttempts` | Number of retry attempts for failed exports | `3` |
-| `export.retryDelaySeconds` | Delay between retry attempts | `2` |
-| `export.chunkSize` | Chunk size for large collections | `1000` |
-
-### Filters and Exclusions
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `filters.excludeDbs` | Comma-separated list of databases to exclude | `"admin,local,config"` |
-| `filters.excludeCollections` | Comma-separated list or patterns of collections to exclude | `"system.*"` |
-
-### Security Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `security.compressionMethod` | Compression method (none, zlib, gzip, lzma) | `lzma` |
-| `security.compressionLevel` | Compression level (1-9) | `9` |
-
-### Schedule Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `schedule.enabled` | Enable scheduled backups | `true` |
-| `schedule.successfulJobsHistoryLimit` | Number of successful jobs to keep | `3` |
-| `schedule.failedJobsHistoryLimit` | Number of failed jobs to keep | `3` |
-| `schedule.concurrencyPolicy` | How to handle concurrent executions | `Forbid` |
-| `schedule.backoffLimit` | Number of retries before considering a Job as failed | `3` |
-| `schedule.activeDeadlineSeconds` | Timeout for backup jobs | `3600` (1 hour) |
-
-### GKE Specific Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `persistence.storageClass` | Storage class for the PVC | `"standard-rwo"` |
-| `persistence.accessMode` | Access mode for the PVC | `ReadWriteOnce` |
-| `nodeSelector` | Node selector for pod assignment | `{}` |
-| `tolerations` | Tolerations for pod assignment | `[]` |
-| `affinity` | Affinity for pod assignment | `{}` |
-
-## Usage
-
-### Manual Backups
-
-To trigger a manual backup outside of the schedule:
-
-```bash
-kubectl create job --from=cronjob/mongodb-backup manual-backup-$(date +%s) -n mongodb-backup
-```
-
-### Viewing Backup Status
-
-To check the status of a running backup job:
-
-```bash
-kubectl get jobs -n mongodb-backup
-```
-
-To view the logs of a backup job:
-
-```bash
-kubectl get pods -n mongodb-backup -l job-name -o name | grep -v completed | head -1 | xargs kubectl logs -n mongodb-backup
-```
-
-### Accessing Backup Data
-
-The backup data is stored in the Persistent Volume Claim. To access it, you can create a temporary pod:
-
-```bash
-kubectl run backup-viewer --image=busybox -i --tty --rm \
-  --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "mongodb-backup-backup-data"}}], "containers": [{"name": "backup-viewer", "image": "busybox", "command": ["sh"], "stdin": true, "tty": true, "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' \
-  -n mongodb-backup -- sh
-```
-
-## Security Considerations
-
-This chart implements several security best practices:
-
-1. Runs as a non-root user with the least privileges necessary
-2. Uses a read-only root filesystem
-3. Drops all container capabilities
-4. Prevents privilege escalation
-5. Sets proper RBAC permissions
-6. Encrypts sensitive backup data
-
-## Backup Encryption
-
-When `security.encryptionEnabled` is set to `true`, all backups are encrypted using AES-256-GCM. The encryption password is either provided in `security.encryptionPassword` or automatically generated and stored in a Kubernetes Secret.
-
-Ensure you securely store the encryption password, as it will be needed to restore from these backups.
-
-## GKE-specific Optimizations
-
-This chart is optimized for running on Google Kubernetes Engine with:
-
-1. Compatible storage classes for GKE
-2. Resource requests and limits suited for GKE environments
-3. Security settings that comply with GKE security best practices
-
-
-
-# MongoDB Secure Backup Features
-
-## Advanced Backup Capabilities
-
-This Helm chart integrates with a specialized MongoDB backup tool that provides:
-
-- **Flexible Export Options**: Export selected databases or collections as JSON
-- **Industry-standard Encryption**: AES-256-GCM encryption for sensitive data
-- **Multiple Compression Options**: zlib, gzip, or lzma compression with configurable levels
-- **Secure Archive Creation**: Combines all exports into a single encrypted and compressed archive
-- **Data Integrity Verification**: HMAC verification ensures backup integrity
-- **Error Handling**: Automatic retry mechanism with configurable attempts and delay
-- **Parallel Processing**: Configurable concurrent export operations for performance
-- **Progress Tracking**: Detailed reporting and monitoring
-
-## Backup Tool Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `backupTool.createArchive` | Create a single encrypted archive of all exports | `true` |
-| `backupTool.deleteOriginal` | Delete original files after archive creation | `true` |
-| `backupTool.saveDbInfo` | Save database metadata as JSON | `true` |
-
-## Recovering from Backups
-
-### Method 1: Using the Backup Browser
-
-For simple recovery or to verify backups:
+#### Method 1: Using a Temporary Pod to Browse Backups
 
 ```bash
 # Create a pod to browse the backup files
@@ -257,35 +102,36 @@ kubectl run backup-viewer --image=busybox -i --tty --rm \
   -n mongodb-backup -- sh
 
 # Inside the pod, list available backups
-ls -la /backups
+ls -la /backups/archives/
 ```
 
-### Method 2: Copy Backups Locally
-
-To copy backup files for external processing:
+#### Method 2: Copying Backup Files to Local Machine
 
 ```bash
-# First, identify the backup files
-kubectl run backup-lister --image=busybox --restart=Never -n mongodb-backup \
-  --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "mongodb-backup-backup-data"}}], "containers": [{"name": "backup-lister", "image": "busybox", "command": ["ls", "-la", "/backups"], "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' 
+# First, create a temporary pod to access the PVC
+kubectl run backup-access --image=busybox --restart=Never -n mongodb-backup \
+  --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "mongodb-backup-backup-data"}}], "containers": [{"name": "backup-access", "image": "busybox", "command": ["sleep", "3600"], "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' 
 
-# Check the output
-kubectl logs backup-lister -n mongodb-backup
+# Wait for pod to be ready
+kubectl wait --for=condition=Ready pod/backup-access -n mongodb-backup
 
-# Then copy a specific backup file to your local machine
-kubectl cp mongodb-backup/backup-viewer:/backups/mongodb_backup_20250101_010101.mdb ./local-backup.mdb
-kubectl cp mongodb-backup/backup-viewer:/backups/mongodb_backup_20250101_010101.mdb.meta.json ./local-backup.mdb.meta.json
+# List available backups
+kubectl exec -it backup-access -n mongodb-backup -- ls -la /backups/archives/
 
-# Clean up the temporary pod
-kubectl delete pod backup-lister -n mongodb-backup
+# Copy a specific backup file to your local machine
+kubectl cp mongodb-backup/backup-access:/backups/archives/mongodb_backup_20250101_010101.mdb ./local-backup.mdb
+kubectl cp mongodb-backup/backup-access:/backups/archives/mongodb_backup_20250101_010101.mdb.meta.json ./local-backup.mdb.meta.json
+
+# Clean up the temporary pod when done
+kubectl delete pod backup-access -n mongodb-backup
 ```
 
-### Method 3: Restore Using the Backup Tool Container
+### Restoring from Backups
 
-For full restoration using the backup tool:
+#### Option 1: Restore Using the Backup Tool Container
 
 ```bash
-# 1. Create a restoration values file
+# Create a restoration values file
 cat > restore-values.yaml << EOF
 connection:
   host: target-mongodb-host
@@ -293,67 +139,107 @@ connection:
   username: target-mongodb-username
   password: target-mongodb-password
   
+security:
+  encryptionEnabled: true
+  encryptionPassword: "same-password-used-for-backup"
+  
 # Disable scheduled backups for restore job
 schedule:
   enabled: false
 EOF
 
-# 2. Deploy a restore pod
-kubectl run mongodb-restore --image={{ .Values.image.repository }}:{{ .Values.image.tag }} \
+# Deploy a restore pod
+kubectl run mongodb-restore --image=arconixforge/mongodb-secure-backup:1.0.0 \
   -n mongodb-backup \
-  --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "mongodb-backup-backup-data"}}], "containers": [{"name": "mongodb-restore", "image": "{{ .Values.image.repository }}:{{ .Values.image.tag }}", "command": ["/app/entrypoint.sh"], "args": ["--restore-archive", "/backups/mongodb_backup_20250101_010101.mdb", "--target-dir", "/tmp/restore"], "env": [{"name": "ENCRYPTION_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "mongodb-backup-secret", "key": "ENCRYPTION_PASSWORD"}}}], "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' 
+  --overrides='{"spec": {"volumes": [{"name": "backup-data", "persistentVolumeClaim": {"claimName": "mongodb-backup-backup-data"}}], "containers": [{"name": "mongodb-restore", "image": "arconixforge/mongodb-secure-backup:1.0.0", "command": ["/app/entrypoint.sh"], "args": ["--restore-archive", "/backups/archives/mongodb_backup_20250101_010101.mdb", "--target-dir", "/tmp/restore"], "env": [{"name": "ENCRYPTION_PASSWORD", "value": "same-password-used-for-backup"}], "volumeMounts": [{"mountPath": "/backups", "name": "backup-data"}]}]}}' 
 
-# 3. Check the restoration logs
+# Check the restoration logs
 kubectl logs -f mongodb-restore -n mongodb-backup
 ```
 
-## Understanding Backup File Types
+#### Option 2: Manual Restore from Extracted Archives
 
-The backup tool creates several types of files:
+1. Copy and extract the archive locally
+2. Use MongoDB import tools on the extracted JSON files:
 
-1. **JSON Exports** (.json): Direct exports from MongoDB collections
-2. **Secure Archives** (.mdb): Encrypted and compressed archives of all exports
-3. **Metadata Files** (.meta.json): Information about the backup including encryption parameters
-4. **Database Info** (database_info.json): Overview of database structure and statistics
-5. **Export Reports** (export_report.json): Detailed report of the export process
+```bash
+# For each extracted collection file
+mongoimport --host target-mongodb-host \
+  --port 27017 \
+  --username your-username \
+  --password your-password \
+  --authenticationDatabase admin \
+  --db database_name \
+  --collection collection_name \
+  --file /path/to/extracted/collection.json
+```
 
-When `backupTool.createArchive` is enabled, individual JSON files are combined into a single .mdb archive file for easier management.
-
-
-## Troubleshooting
+## Troubleshooting Backup and Recovery
 
 ### Common Issues
 
-1. **MongoDB Connection Issues**: 
-   - Ensure the MongoDB credentials are correct
-   - Check network connectivity between the backup pod and MongoDB
-   - Verify SSL settings if SSL is enabled
+1. **Cannot access PVC data**:
+   - Ensure your pods have the correct permissions to mount the PVC
+   - Check if the PVC is bound: `kubectl get pvc -n mongodb-backup`
+   - Verify the PVC has sufficient space: `kubectl describe pvc mongodb-backup-backup-data -n mongodb-backup`
 
-2. **Permission Issues**:
-   - Make sure the MongoDB user has appropriate permissions for database backup
-   - Check if the Kubernetes service account has the necessary permissions
+2. **Encryption/Decryption failures**:
+   - Ensure you're using the same encryption password used during backup
+   - Check if the .meta.json file is present alongside the .mdb file
+   - Verify that both the archive and metadata files are complete and not corrupted
 
-3. **Storage Issues**:
-   - Verify that the PVC is correctly bound and has sufficient space
-   - Check if the storage class exists and is compatible with GKE
+3. **MongoDB Connection Issues**:
+   - Check network connectivity between backup pod and MongoDB
+   - Verify authentication credentials are correct
+   - Ensure the MongoDB user has appropriate backup permissions
 
-### Debugging Tips
-
-To check the logs of the last backup job:
-
-```bash
-kubectl get pods -n mongodb-backup | grep mongodb-backup | head -1 | awk '{print $1}' | xargs kubectl logs -n mongodb-backup
-```
-
-To check the configuration used for backups:
+### Viewing Backup Logs
 
 ```bash
-kubectl get configmap mongodb-backup-config -n mongodb-backup -o yaml
+# Get the latest backup job pod
+BACKUP_POD=$(kubectl get pods -n mongodb-backup -l app.kubernetes.io/name=mongodb-backup -o name | head -1)
+
+# View the logs
+kubectl logs $BACKUP_POD -n mongodb-backup
 ```
+
+## Building and Customizing
+
+### Building the Docker Image
+
+```bash
+# Download required packages
+./prepare-packages.sh
+
+# Build the Docker image
+./build-image.sh
+```
+
+### Customizing the Backup Configuration
+
+The most important configuration parameters:
+
+* **MongoDB Connection**: Host, port, authentication
+* **Encryption**: Enable/disable, password, method
+* **Compression**: Method (zlib, gzip, lzma), level
+* **Filters**: Databases or collections to exclude
+* **Schedule**: Cron expression for automated backups
+
+See the `values.yaml` file in the Helm chart for the complete list of configuration options.
+
+## Security Considerations
+
+This tool implements several security best practices:
+
+1. **Strong encryption** using AES-256-GCM for sensitive data
+2. **Non-root execution** with minimal privileges
+3. **Encrypted archives** with integrity verification
+4. **Secure password handling** via Kubernetes secrets
+5. **Read-only containers** when deployed via Helm chart
 
 ## License
 
-Copyright &copy; 2025 YourName
+Copyright © 2025 ArconixForge
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
