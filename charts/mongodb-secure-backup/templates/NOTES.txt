@@ -49,18 +49,13 @@ To access the data, you can create a temporary pod:
 
 ## Backup Archives
 
-{{- if .Values.backupTool.createArchive }}
-Backup archives are automatically created after exports and stored in:
+Backup archives are automatically created at:
   {{ .Values.export.archiveDir }}
 
 Archive files use the naming format: mongodb_backup_YYYYMMDD_HHMMSS.mdb
 
 To view available archives:
-  kubectl exec -it $(kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ .Release.Name }}" -n {{ .Release.Namespace }} --field-selector=status.phase=Running -o name | head -1) -- find {{ .Values.export.archiveDir }} -name "*.mdb" -type f
-
-{{- else }}
-Archive creation is currently disabled. To enable, set 'backupTool.createArchive' to true.
-{{- end }}
+  kubectl exec -it $(kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ .Release.Name }}" -n {{ .Release.Namespace }} --field-selector=status.phase=Running -o name | head -1) -- ls -la {{ .Values.export.archiveDir }}/*.mdb
 
 ## Security Notice
 

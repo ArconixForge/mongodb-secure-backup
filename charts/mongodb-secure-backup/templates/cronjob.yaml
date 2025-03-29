@@ -37,15 +37,10 @@ spec:
                 - -c
                 - |
                   echo "Preparing backup directories..."
-                  whoami
-                  echo "Current user ID: $(id -u) and group ID: $(id -g)"
-                  
-                  echo "Root fs contents:"
-                  find / -maxdepth 1 -type d | sort
                   
                   # Create all required directories
-                  mkdir -p /backup-data
-                  mkdir -p /backup-data/exports
+                  mkdir -p /backup-data/db-exports
+                  mkdir -p /backup-data/db-info
                   mkdir -p /backup-data/archives
                   mkdir -p /home/backupuser
                   
@@ -53,14 +48,15 @@ spec:
                   chmod -R 777 /backup-data
                   chmod -R 777 /home/backupuser
                   
-                  # Create test files to verify directory is writable
-                  echo "test" > /backup-data/test.txt
-                  echo "test" > /backup-data/exports/test.txt
+                  # Create test files to verify directories are writable
+                  echo "test" > /backup-data/db-exports/test.txt
+                  echo "test" > /backup-data/db-info/test.txt
                   echo "test" > /backup-data/archives/test.txt
                   
                   echo "Directory contents:"
                   ls -la /backup-data
-                  ls -la /backup-data/exports
+                  ls -la /backup-data/db-exports
+                  ls -la /backup-data/db-info
                   ls -la /backup-data/archives
                   
                   # Setup ownership
@@ -91,7 +87,7 @@ spec:
                 - "/bin/bash"
                 - "-c"
                 - |
-                  echo "Starting backup process..."
+                  echo "Starting MongoDB backup process..."
                   whoami
                   echo "Current user ID: $(id -u) and group ID: $(id -g)"
                   
@@ -101,63 +97,100 @@ spec:
                   cp /app/config/mongodb_backup.ini /tmp/config/
                   chmod 644 /tmp/config/mongodb_backup.ini
                   
-                  # Inspect and modify config
+                  # Modify config to use correct directories
                   echo "Original config:"
                   cat /tmp/config/mongodb_backup.ini
                   
-                  # Explicitly set output dir in config
-                  sed -i 's|output_dir = .*|output_dir = "/backup-data/exports"|g' /tmp/config/mongodb_backup.ini
+                  # Set specific directories in config
+                  sed -i 's|output_dir = .*|output_dir = "/backup-data/db-exports"|g' /tmp/config/mongodb_backup.ini
                   
                   echo "Modified config:"
                   cat /tmp/config/mongodb_backup.ini
                   
                   # Set environment variables
                   export HOME=/home/backupuser
-                  export BACKUP_OUTPUT_DIR=/backup-data/exports
-                  
-                  echo "Environment variables:"
-                  env | grep -E 'HOME|BACKUP|MONGO'
+                  export BACKUP_OUTPUT_DIR=/backup-data/db-exports
                   
                   echo "Directory contents before backup:"
                   ls -la /backup-data
-                  ls -la /backup-data/exports
+                  ls -la /backup-data/db-exports
+                  ls -la /backup-data/db-info
                   ls -la /backup-data/archives
                   
-                  echo "Running backup command:"
-                  echo "/app/entrypoint.sh auto-backup --config /tmp/config/mongodb_backup.ini --create-archive --save-db-info"
-                  
-                  # Run the direct command without shell substitution
-                  /app/entrypoint.sh auto-backup --config /tmp/config/mongodb_backup.ini --create-archive --save-db-info
-                  
-                  # Store the exit code
-                  BACKUP_EXIT_CODE=$?
-                  echo "Backup completed with exit code: $BACKUP_EXIT_CODE"
-                  
-                  echo "Directory contents after backup:"
-                  ls -la /backup-data
-                  ls -la /backup-data/exports
-                  ls -la /backup-data/archives
-                  
-                  # Fix archiving issue by running it directly if needed
-                  if [ $BACKUP_EXIT_CODE -eq 0 ] && [ ! -f /backup-data/*.mdb ]; then
-                    echo "Archive not created, trying direct archive creation..."
-                    python /app/mongodb_backup.py --config /tmp/config/mongodb_backup.ini --create-archive
+                  # STEP 1: Save Database Information
+                  echo "===== STEP 1: Saving Database Information ====="
+                  if [ {{ .Values.backupTool.saveDbInfo }} = true ]; then
+                    echo "Saving database information to JSON..."
+                    python /app/mongodb_backup.py --config /tmp/config/mongodb_backup.ini --save-db-info
+                    
+                    # Copy to dedicated db-info directory
+                    cp /backup-data/db-exports/database_info.json /backup-data/db-info/ || echo "No database info was created"
+                    
+                    echo "Database info directory contents:"
+                    ls -la /backup-data/db-info
+                  else
+                    echo "Skipping database info - disabled in configuration"
                   fi
                   
-                  # Find archives
-                  echo "Looking for archives in all locations:"
-                  find / -name "*.mdb" -type f 2>/dev/null || echo "No archives found anywhere"
+                  # STEP 2: Export Databases
+                  echo "===== STEP 2: Exporting Databases ====="
+                  if [ {{ .Values.backupTool.exportDatabases }} = true ]; then
+                    echo "Exporting MongoDB databases..."
+                    python /app/mongodb_backup.py --config /tmp/config/mongodb_backup.ini --export
+                    
+                    echo "Database exports directory contents:"
+                    ls -la /backup-data/db-exports
+                    echo "Total exported files:"
+                    find /backup-data/db-exports -type f | wc -l
+                  else
+                    echo "Skipping database export - disabled in configuration"
+                  fi
                   
-                  # Look specifically in the backup directory
-                  echo "Archives in backup directory:"
-                  find /backup-data -name "*.mdb" -type f 2>/dev/null || echo "No archives found in backup directory"
+                  # STEP 3: Create Archive
+                  echo "===== STEP 3: Creating Archive ====="
+                  if [ {{ .Values.backupTool.createArchive }} = true ]; then
+                    echo "Creating encrypted archive of database exports..."
+                    
+                    # Create archive with specific output directory
+                    ARCHIVE_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                    
+                    # Check if there are files to archive
+                    EXPORT_FILE_COUNT=$(find /backup-data/db-exports -type f | wc -l)
+                    if [ "$EXPORT_FILE_COUNT" -gt 0 ]; then
+                        if [ {{ .Values.backupTool.deleteOriginal }} = true ]; then
+                          python /app/mongodb_backup.py --config /tmp/config/mongodb_backup.ini --create-archive
+                        else
+                          python /app/mongodb_backup.py --config /tmp/config/mongodb_backup.ini --create-archive --keep-original
+                        fi
+                      
+                      # Move archives to dedicated archives directory
+                      find /backup-data -name "*.mdb" -not -path "*/archives/*" -exec mv {} /backup-data/archives/ \;
+                      find /backup-data -name "*.mdb.meta.json" -not -path "*/archives/*" -exec mv {} /backup-data/archives/ \;
+                      
+                      echo "Archive directory contents:"
+                      ls -la /backup-data/archives
+                    else
+                      echo "No files to archive - export directory is empty"
+                    fi
+                  else
+                    echo "Skipping archive creation - disabled in configuration"  
+                  fi
                   
-                  # Keep container running for debugging
-                  echo "Backup process complete, sleeping for debug access..."
-                  sleep 3600
+                  echo "===== Backup Process Complete ====="
+                  echo "Directory contents after backup:"
+                  ls -la /backup-data
+                  ls -la /backup-data/db-exports
+                  ls -la /backup-data/db-info
+                  ls -la /backup-data/archives
+                  
+                  # Show sizes
+                  echo "Directory sizes:"
+                  du -sh /backup-data/*
+                  
+                  echo "Backup completed successfully"
               env:
                 - name: BACKUP_OUTPUT_DIR
-                  value: "/backup-data/exports"
+                  value: "/backup-data/db-exports"
                 - name: HOME
                   value: "/home/backupuser"
                 {{- if .Values.connection.username }}
